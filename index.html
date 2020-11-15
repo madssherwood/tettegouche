@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html>
+    
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Tettegouche State Park</title> 
+    <style>
+        html,
+        body,
+        #nav {
+            padding: 0;
+            margin-top: 5;
+            margin-left: 15;
+            margin-right: 15;
+            margin-bottom: 5;
+        }
+        
+        #mapDiv {
+            padding: 0;
+            margin: 0;
+            height: 90%;
+            width: 100%;
+        }
+        
+        #editorDiv {
+            position: absolute;
+            top: 255px;
+            left: 15px;
+        }
+        
+        #system-filter {
+            height: 210px;
+            width: 100%;
+            visibility: hidden;
+        }
+
+        .system-item {
+            width: 100%;
+            padding-top: 5px;
+            padding-bottom: 15px;
+            padding-left: 10px;
+            padding-right: 10px;
+            text-align: center;
+            vertical-align: baseline;
+            cursor: pointer;
+            height: 43px;
+        }
+
+        .system-item:hover {
+            background-color: grey;
+        }
+        
+        #queryDiv {
+            padding: 10px;
+            width: 215px;
+        }
+        
+        #drop-down {
+            padding-bottom: 15px;
+        }
+        
+        #results {
+            font-weight: bolder;
+            padding-top: 10px;
+        }
+      }
+    </style>
+
+    <script src="//code.jquery.com/jquery-1.11.3.min.js"></script>
+    <script src="//code.jquery.com/jquery-migrate-1.2.1.min.js"></script>
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+
+    <link rel="stylesheet" href="https://js.arcgis.com/4.15/esri/themes/light/main.css">        
+    <script src="https://js.arcgis.com/4.15/"></script>
+
+    <script>
+        require([
+            "esri/Map",
+            "esri/views/MapView",
+            "esri/layers/FeatureLayer",
+            "esri/Graphic",
+            "esri/layers/GraphicsLayer",
+            "esri/widgets/Editor",
+            "esri/widgets/Locate",
+            "esri/widgets/Home",
+            "esri/widgets/LayerList",
+            "esri/widgets/Expand"
+        ], function (Map, MapView, FeatureLayer, Graphic, GraphicsLayer, Editor, Locate, Home, LayerList, Expand) {
+            
+            var boundaryLayer = new FeatureLayer({
+                url: "https://services6.arcgis.com/Zz9rLy8hhX5ucrKI/arcgis/rest/services/Park_Boundary/FeatureServer",
+                id: "boundary",
+                opacity: 0.7
+            });
+            
+            var plantLayer = new FeatureLayer({
+                url: "https://services6.arcgis.com/Zz9rLy8hhX5ucrKI/arcgis/rest/services/Native_Plant_Communities/FeatureServer"
+            });
+            
+            var plantTemplate = {
+                title: "Native Plant Community",
+                content: [
+                    {
+                        type: "fields",
+                        fieldInfos: [
+                            {
+                                fieldName: "NPC_descri",
+                                label: "Community"
+                            }, 
+                            {
+                                fieldName: "class_desc",
+                                label: "Class Description"
+                            },
+                            {
+                                fieldName: "system_des",
+                                label: "System Description"
+                            }    
+                        ]
+                    }    
+                ]
+            };
+            
+            plantLayer.popupTemplate = plantTemplate;
+            
+            var trailLayer = new FeatureLayer({
+                url: "https://services6.arcgis.com/Zz9rLy8hhX5ucrKI/arcgis/rest/services/Hiking_Trails/FeatureServer",
+                id: "trails"
+            });
+            
+            var trailTemplate = {
+                title: "Hiking Trail",
+                content: [
+                    {
+                        type: "fields",
+                        fieldInfos: [
+                            {
+                                fieldName: "trail_name",
+                                label: "Name"
+                            }
+                        ]
+                    }
+                ]
+            };
+            
+            trailLayer.popupTemplate = trailTemplate;
+            
+            var campgroundLayer = new FeatureLayer({
+                url: "https://services6.arcgis.com/Zz9rLy8hhX5ucrKI/arcgis/rest/services/campgrounds/FeatureServer",
+                id: "campgrounds"
+            });
+            
+            var campgroundTemplate = {
+                title: "Campground",
+                content: [
+                    {
+                        type: "fields",
+                        fieldInfos: [
+                            {
+                                fieldName: "facility_n",
+                                label: "Name"
+                            },
+                            {
+                                fieldName: "pat_admin_",
+                                label: "Park"
+                            },
+                            {
+                                fieldName: "state_fore",
+                                label: "Forest"
+                            }
+                        ]
+                    }
+                ]
+            };
+            
+            campgroundLayer.popupTemplate = campgroundTemplate;
+            
+            var reportLayer = new FeatureLayer({
+                url: "https://services6.arcgis.com/Zz9rLy8hhX5ucrKI/arcgis/rest/services/reports/FeatureServer",
+                id: "reports"
+            });
+            
+            var reportTemplate = {
+                title: "Reported Sighting",
+                content: [
+                    {
+                        type: "fields",
+                        fieldInfos: [
+                            {
+                                fieldName: "specie",
+                                label: "Specie Sighted"
+                            },
+                            {
+                                fieldName: "identify",
+                                label: "Idenfying Information"
+                            },
+                            {
+                                fieldName: "date_reported",
+                                label: "Date Reported"
+                            },
+                            {
+                                fieldName: "name_reported",
+                                label: "Reporter"
+                            },
+                            {
+                                fieldName: "notes",
+                                label: "Additional Notes"
+                            }
+                        ]
+                    }
+                ]
+            };
+            
+            reportLayer.popupTemplate = reportTemplate;
+            
+            var resultsLayer = new GraphicsLayer();
+            
+            resultsLayer.title = "Query Results"
+
+            var map = new Map({
+                basemap: "topo-vector",
+                layers: [boundaryLayer, plantLayer, trailLayer, campgroundLayer, reportLayer, resultsLayer]
+            }); 
+           
+            var view = new MapView({
+                container: "mapDiv",
+                map: map,
+                center: [-91.250000, 47.340000],
+                zoom: 12
+            });
+            
+            view.when(function() {
+                limitMapExtent(view);
+            });
+            
+            function limitMapExtent(view) {
+                var initialExtent = view.extent;
+                view.watch('stationary', function(event) {
+                    if (!event) {
+                        return;
+                    }
+                    
+                    var currentCenter = view.extent.center;
+                    if (!initialExtent.contains(currentCenter)) {
+                        var newCenter = view.extent.center;
+                        
+                        if (currentCenter.x < initialExtent.xmin) {
+                            newCenter.x = initialExtent.xmin;
+                        }
+                        if (currentCenter.x > initialExtent.xmax) {
+                            newCenter.x = initialExtent.xmax;
+                        }
+                        if (currentCenter.y < initialExtent.ymin) {
+                            newCenter.y = initialExtent.ymin;
+                        }
+                        if (currentCenter.y > initialExtent.ymax) {
+                            newCenter.y = initialExtent.ymax;
+                        }
+                        view.goTo(newCenter);
+                    }
+                });
+            };
+            
+            view.ui.add("queryDiv", "top-right");
+            
+            view.when(function () {
+                
+                document.getElementById("sourceBtn").addEventListener("click", dnrSource, false);
+                
+                function dnrSource(e) {
+                    var url = e.target.href;
+                    window.open(url,"", "titlebar=no");
+                }
+                document.getElementById("queryBtn").addEventListener("click", function () {
+                    runQuery().then(displayResults);
+            });
+            
+            var value = document.getElementById("specie-selected");
+            
+            function runQuery() {            
+                var query = reportLayer.createQuery();
+                query.where = "specie = " + value.value;
+                
+                return reportLayer.queryFeatures(query);
+            }
+            
+            function displayResults(results) {
+                resultsLayer.removeAll();
+                var features = results.features.map(function (graphic) {
+                    graphic.symbol = {
+                        type: "simple-marker",
+                        style: "circle",
+                        size: 8,
+                        color: "green"
+                    };
+                    
+                    console.log(resultsLayer.title)
+                    return graphic;
+                });
+                var numResults = features.length;
+                document.getElementById("results").innerHTML = numResults + " records found";
+                resultsLayer.addMany(features);
+            };
+            });
+            
+            var homeBtn = new Home({
+                view: view
+            });
+            
+            view.ui.add(homeBtn, "top-left");
+                        
+            var locateBtn = new Locate({
+                view: view
+            });
+            
+            view.ui.add(locateBtn, "top-left");
+     
+            var editorWidget = new Editor({
+                view: view,
+                container: document.createElement("div"),
+            });
+            
+            var editorExpand = new Expand({
+                view: view,
+                content: editorWidget.domNode,
+                container: "editorDiv",
+                expandIconClass: "esri-icon-edit",
+            });
+            
+            view.ui.add(editorExpand, "manual")
+            
+            var layerList = new LayerList({
+                view: view,
+                container: document.createElement("div"),
+            });
+            
+            var layerExpand = new Expand({
+                view: view,
+                content: layerList.domNode,
+                expandIconClass: "esri-icon-layers"
+            });
+            
+            view.ui.add(layerExpand, "top-left");
+            
+            var plantSystemView;
+            
+            var systemNodes = document.querySelectorAll(".system-item");
+        
+            var systemElement = document.getElementById("system-filter");
+
+            systemElement.addEventListener("click", filterBySystem);
+            
+            function filterBySystem(event) {
+                var selectedSystem = event.target.getAttribute("system_des");
+                plantSystemView.filter = {
+                    where: "system_des = '" + selectedSystem + "'"
+                };
+            }
+
+            view.whenLayerView(plantLayer).then(function (layerView) {
+          
+                plantSystemView = layerView;
+
+                systemElement.style.visibility = "visible";
+                var systemExpand = new Expand({
+                    view: view,
+                    content: systemElement,
+                    container: "systemDiv",
+                    expandIconClass: "esri-icon-filter"
+                });
+                
+                systemExpand.watch("expanded", function () {
+                    if (!systemExpand.expanded) {
+                        plantSystemView.filter = null;
+                    }
+                });
+          
+                view.ui.add(systemExpand, "top-left");
+            });
+        });
+    </script>
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background-color: #aeb5a4" id="nav">
+        <a class="navbar-brand" style="color: #404040" href="#">
+            <h1>Tettegouche State Park</h1>
+        </a>
+    </nav>
+    
+    <div class="container-fluid">
+        <div id="mapDiv" class="col-md-12"></div>
+        <div id="editorDiv"></div>
+        <div id="system-filter" class="esri-widget">
+            <div class="system-item visible-system" system_des="Complex community">Complex Community</div>
+            <div class="system-item visible-system" system_des="Fire-Dependent Forest/Woodland System">Fire-Dependent Forest/Woodland</div>
+            <div class="system-item visible-system" system_des="Forested Rich Peatland System">Forested Rich Peatland</div>
+            <div class="system-item visible-system" system_des="Mesic Hardwood Forest System">Mesic Hardwood Forest</div>
+            <div class="system-item visible-system" system_des="Wet Forest System">Wet Forest</div>
+        </div>
+        <div id="queryDiv" class="esri-widget">
+            <div id="drop-down">
+            Select specie type:
+                <select id="specie-selected" class="esri-widget">
+                    <option value="0">amur silver grass</option>
+                    <option value="1">bird's foot trefoil</option>
+                    <option value="2">bull thistle</option>
+                    <option value="3">butter and eggs</option>
+                    <option value="4">Canada thistle</option>
+                    <option value="5">cow vetch / hair vetch</option>
+                    <option value="6">creeping Charlie</option>
+                    <option value="7">crown vetch / axseed</option>
+                    <option value="8">flowering rush</option>
+                    <option value="9">garlic mustard</option>
+                    <option value="10">Grecian foxglove</option>
+                    <option value="11">hoary alyssum</option>
+                    <option value="12">Japanese knotweed</option>
+                    <option value="13">leafy spurge</option>
+                    <option value="14">musk / nodding thistle</option>
+                    <option value="15">non-native waterlillies</option>
+                    <option value="16">ox-eye daisy</option>
+                    <option value="17">perennial sow thistle</option>
+                    <option value="18">purple loosestrife</option>
+                    <option value="19">Queen Anne's lace</option>
+                    <option value="20">reed canary grass</option>
+                    <option value="21">smooth brome grass</option>
+                    <option value="22">spotted knapweed</option>
+                    <option value="23">white / yellow  sweetclover</option>
+                    <option value="24">wild parsnip</option>
+                    <option value="25">yellow iris</option>
+                </select>
+            </div>
+            <button id="queryBtn" class="esri-widget">Query</button>
+            <button id="sourceBtn" class="esri-widget">
+                <a href="https://www.dnr.state.mn.us/rys/pg/invasive.html" onclick="return false">DNR Website</a>
+            </button>
+            <div id="results" class="esri-widget"></div>    
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+</body>
+
+</html>
